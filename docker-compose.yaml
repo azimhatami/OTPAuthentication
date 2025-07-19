@@ -1,0 +1,23 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - DB_URI=mongodb://mongo:27017/otp_auth_db
+      - JWT_SECRET=ASBVBU2TB23BASJ0J0ABCTESTSECTRETJWT0
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
