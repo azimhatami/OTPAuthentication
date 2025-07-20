@@ -1,36 +1,35 @@
 const jwt = require('jsonwebtoken');
-
 const User = require('../models/User');
-const Otp = require('../models/Otp');
-
 
 exports.sendOTP = async (req, res, next) => {
   try {
     const { mobile } = req.body;
 
-    const existingOtp = await Otp.findOne({ mobile });
+    let user = await User.findOne({ mobile });
 
-    if (existingOtp) {
+    if (user && user.otpExpires && user.otpExpires > new Date()) {
       return res.status(429).json({
-        message: 'You have recently requested ant OTP. Please try again after a minute.'
+        message: 'You have recently requested an OTP. Please try again after a minute.'
       });
     }
-    
-    // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await Otp.create({ mobile, code });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 60000); 
+
+    await User.findOneAndUpdate(
+      { mobile },
+      { otp: code, otpExpires: expires },
+      { upsert: true, new: true, setDefaultsOnInsert: true } 
+    );
 
     console.log(`OTP for ${mobile} is: ${code}`);
-    
-    res.status(201).json({
-      message: 'OTP generated and sent.'
+
+    res.status(200).json({ 
+      message: 'OTP sent successfully.'
     });
+
   } catch (error) {
-    res.status(500).json({
-      message: 'Server error',
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -38,31 +37,20 @@ exports.verifyOTP = async (req, res, next) => {
   try {
     const { mobile, code } = req.body;
 
-    const oneMinAgo = new Date(Date.now() - 60000);
-    
-    const otpEntry = await Otp.findOne({ 
-      mobile, 
-      code, 
-      createdAt: { $gt: oneMinAgo } 
+    const user = await User.findOne({
+      mobile,
+      otp: code,
+      otpExpires: { $gt: new Date() } 
     });
 
-    if (!otpEntry) {
-      return res.status(400).json({
-        message: 'Invalid or expired OTP'
-      });
-    }
-
-    // Find user or create a new one
-    let user = await User.findOne({ mobile });
-    
     if (!user) {
-      user = await User.create({ mobile });
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // Delete the used OTP
-    await Otp.deleteOne({ _id: otpEntry._id });
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: user._id, mobile: user.mobile },
       process.env.JWT_SECRET,
@@ -75,13 +63,11 @@ exports.verifyOTP = async (req, res, next) => {
       user: {
         _id: user._id,
         mobile: user.mobile,
-        createAt: user.createAt
+        createdAt: user.createdAt 
       }
     });
+
   } catch (error) {
-    res.status(500).json({
-      message: 'Server error',
-      error: error.message
-    });
+    next(error);
   }
 };
