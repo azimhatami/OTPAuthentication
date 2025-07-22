@@ -11,7 +11,7 @@ docker compose up --build
 Subsequent Runs (Start Only)
 
 ```bash
-docker compose up up -d
+docker compose up -d
 ```
 
 Access Services
