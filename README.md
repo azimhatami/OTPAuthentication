@@ -13,3 +13,9 @@ Subsequent Runs (Start Only)
 ```bash
 docker compose up up -d
 ```
+
+Access Services
+
+    Backend API: http://localhost:8000
+
+    Swagger docs: http://localhost:8000/docs
