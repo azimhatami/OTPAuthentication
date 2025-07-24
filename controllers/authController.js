@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
 const User = require('../models/User');
 
 exports.sendOTP = async (req, res, next) => {
@@ -14,11 +16,15 @@ exports.sendOTP = async (req, res, next) => {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Hash OTP
+    const hashedCode = await bcrypt.hash(code, 10);
+
     const expires = new Date(Date.now() + 60000); 
 
     await User.findOneAndUpdate(
       { mobile },
-      { otp: code, otpExpires: expires },
+      { otp: hashedCode, otpExpires: expires },
       { upsert: true, new: true, setDefaultsOnInsert: true } 
     );
 
@@ -39,12 +45,17 @@ exports.verifyOTP = async (req, res, next) => {
 
     const user = await User.findOne({
       mobile,
-      otp: code,
       otpExpires: { $gt: new Date() } 
     });
 
     if (!user) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    const isMatch = await bcrypt.compare(code, user.otp);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' })
     }
 
     user.otp = undefined;
